@@ -269,11 +269,14 @@ async def consultar(
     if not msg:
         msg = str(data)
 
+    detail = json.dumps(data, ensure_ascii=False, indent=2) if isinstance(data, dict) else str(data)
+
     return templates.TemplateResponse("index.html", {
         "request": request,
         "resultado": None,
         "convenios": CONVENIOS,
         "erro": f"HTTP {status} — {msg}",
+        "erro_detalhe": detail,
         "form": form_data,
     })
 
