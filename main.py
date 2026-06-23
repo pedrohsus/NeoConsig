@@ -139,7 +139,7 @@ async def _get_token(client: httpx.AsyncClient) -> str:
     return data["access_token"]
 
 
-async def consultar_margem(cpf: str, matricula: str, cod_banco: str, cod_convenio: str, token_consig: str) -> dict:
+async def consultar_margem(cpf: str, matricula: str, cod_banco: str, cod_convenio: str, token_consig: str, senha: str) -> dict:
     async with httpx.AsyncClient(timeout=30) as client:
         access_token = await _get_token(client)
 
@@ -151,6 +151,8 @@ async def consultar_margem(cpf: str, matricula: str, cod_banco: str, cod_conveni
         }
         if token_consig.strip():
             params["token"] = token_consig.strip()
+        if senha.strip():
+            params["senha"] = senha.strip()
 
         headers = {
             "Authorization": f"Bearer {access_token}",
@@ -211,7 +213,7 @@ async def index(request: Request):
         "resultado": None,
         "erro": None,
         "convenios": CONVENIOS,
-        "form": {"cpf": "", "matricula": "", "codBanco": "958", "codConvenio": "8", "token": ""},
+        "form": {"cpf": "", "matricula": "", "codBanco": "958", "codConvenio": "8", "token": "", "senha": ""},
     })
 
 
@@ -223,6 +225,7 @@ async def consultar(
     codBanco: str = Form("958"),
     codConvenio: str = Form("8"),
     token: str = Form(""),
+    senha: str = Form(""),
 ):
     cpf_limpo = re.sub(r"\D", "", cpf)
 
@@ -232,10 +235,11 @@ async def consultar(
         "codBanco": codBanco,
         "codConvenio": codConvenio,
         "token": token,
+        "senha": senha,
     }
 
     try:
-        result = await consultar_margem(cpf_limpo, matricula, codBanco, codConvenio, token)
+        result = await consultar_margem(cpf_limpo, matricula, codBanco, codConvenio, token, senha)
     except httpx.HTTPStatusError as exc:
         return templates.TemplateResponse("index.html", {
             "request": request,

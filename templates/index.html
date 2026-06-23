@@ -59,8 +59,16 @@
                 </div>
             </div>
 
-            <label for="token">Token Consignatário</label>
-            <input type="text" id="token" name="token" value="{{ form.token }}">
+            <div class="row">
+                <div>
+                    <label for="token">Token Consignatário</label>
+                    <input type="text" id="token" name="token" value="{{ form.token }}">
+                </div>
+                <div>
+                    <label for="senha">Senha Consignatária</label>
+                    <input type="text" id="senha" name="senha" value="{{ form.senha }}">
+                </div>
+            </div>
 
             <button type="submit" id="btnSubmit">
                 <span id="btnText">Consultar Margem</span>
