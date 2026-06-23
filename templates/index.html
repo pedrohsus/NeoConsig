@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeoConsig — Consulta de Margem</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f2f5; color: #1a1a2e; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 2rem 1rem; }
+        h1 { font-size: 1.6rem; margin-bottom: 1.5rem; color: #16213e; }
+        .card { background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.08); padding: 2rem; width: 100%; max-width: 640px; margin-bottom: 1.5rem; }
+        label { display: block; font-weight: 600; margin-bottom: .3rem; font-size: .9rem; }
+        input[type="text"] { width: 100%; padding: .6rem .8rem; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; margin-bottom: 1rem; transition: border-color .2s; }
+        input[type="text"]:focus, select:focus { outline: none; border-color: #0f3460; box-shadow: 0 0 0 3px rgba(15,52,96,.12); }
+        select { width: 100%; padding: .6rem .8rem; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; margin-bottom: 1rem; background: #fff; transition: border-color .2s; }
+        .row { display: flex; gap: 1rem; }
+        .row > div { flex: 1; }
+        button { display: block; width: 100%; padding: .75rem; background: #0f3460; color: #fff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background .2s; }
+        button:hover { background: #16213e; }
+        button:disabled { background: #999; cursor: wait; }
+        .erro { background: #ffeaea; border-left: 4px solid #e74c3c; padding: 1rem 1.2rem; border-radius: 8px; margin-bottom: 1rem; color: #c0392b; font-size: .95rem; word-break: break-word; }
+        .section-title { font-size: 1.1rem; font-weight: 700; margin: 1.2rem 0 .6rem; color: #0f3460; border-bottom: 2px solid #e8e8e8; padding-bottom: .3rem; }
+        .dados-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem 1.5rem; font-size: .93rem; }
+        .dados-grid dt { font-weight: 600; color: #555; }
+        .dados-grid dd { margin: 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: .5rem; font-size: .93rem; }
+        th { background: #0f3460; color: #fff; padding: .55rem .8rem; text-align: left; }
+        td { padding: .55rem .8rem; border-bottom: 1px solid #e8e8e8; }
+        tr:hover td { background: #f7f9fc; }
+        .meta { font-size: .85rem; color: #777; margin-top: 1rem; }
+        .spinner { display: none; width: 18px; height: 18px; border: 3px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin .6s linear infinite; margin: 0 auto; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <h1>NeoConsig — Consulta de Margem Consignável</h1>
+    <div id="ipInfo" style="font-size:.8rem;color:#777;margin-bottom:.8rem;">Seu IP público: carregando…</div>
+
+    <div class="card">
+        <form id="formConsulta" method="post" action="/consultar">
+            <label for="cpf">CPF</label>
+            <input type="text" id="cpf" name="cpf" value="{{ form.cpf }}" placeholder="000.000.000-00" required maxlength="14">
+
+            <label for="matricula">Matrícula</label>
+            <input type="text" id="matricula" name="matricula" value="{{ form.matricula }}" placeholder="Número da matrícula" required>
+
+            <div class="row">
+                <div>
+                    <label for="codBanco">Cód. Banco</label>
+                    <input type="text" id="codBanco" name="codBanco" value="{{ form.codBanco }}">
+                </div>
+                <div>
+                    <label for="codConvenio">Convênio</label>
+                    <select id="codConvenio" name="codConvenio">
+                        {% for cod, nome in convenios.items() %}
+                        <option value="{{ cod }}" {% if form.codConvenio == cod %}selected{% endif %}>{{ cod }} — {{ nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <label for="token">Token Consignatário</label>
+            <input type="text" id="token" name="token" value="{{ form.token }}">
+
+            <button type="submit" id="btnSubmit">
+                <span id="btnText">Consultar Margem</span>
+                <div class="spinner" id="btnSpinner"></div>
+            </button>
+        </form>
+    </div>
+
+    {% if erro %}
+    <div class="card">
+        <div class="erro">{{ erro }}</div>
+    </div>
+    {% endif %}
+
+    {% if resultado %}
+    <div class="card">
+        {% if resultado.dadosConsulta and resultado.dadosConsulta.dadosFuncionais %}
+        {% set df = resultado.dadosConsulta.dadosFuncionais %}
+        <div class="section-title">Dados Funcionais</div>
+        <dl class="dados-grid">
+            <dt>Secretaria</dt><dd>{{ df.secretaria or '—' }}</dd>
+            <dt>Categoria</dt><dd>{{ df.categoria or '—' }}</dd>
+            <dt>Situação</dt><dd>{{ df.situacao or '—' }}</dd>
+            <dt>Cargo</dt><dd>{{ df.cargo or '—' }}</dd>
+            <dt>Data Admissão</dt><dd>{{ df.data_admissao or '—' }}</dd>
+        </dl>
+        {% endif %}
+
+        {% if resultado.dadosConsulta and resultado.dadosConsulta.margens %}
+        <div class="section-title">Margens</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Produto</th>
+                    <th>Margem (R$)</th>
+                    <th>Margem Consignável (R$)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in resultado.dadosConsulta.margens %}
+                <tr>
+                    <td>{{ m.pro_nome }}</td>
+                    <td>{{ "%.2f"|format(m.margem) }}</td>
+                    <td>{{ "%.2f"|format(m.margem_consignavel) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        {% if resultado.sucesso %}
+        <div class="section-title">Status</div>
+        <p>{{ resultado.sucesso.mensagem }} (código {{ resultado.sucesso.codigo }})</p>
+        {% endif %}
+
+        <div class="meta">
+            {% if resultado.idOperacao %}ID Operação: <strong>{{ resultado.idOperacao }}</strong> · {% endif %}
+            {% if resultado.dtHrConsulta %}Data/Hora: <strong>{{ resultado.dtHrConsulta }}</strong>{% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <script>
+        // Máscara de CPF
+        const cpfInput = document.getElementById('cpf');
+        cpfInput.addEventListener('input', function () {
+            let v = this.value.replace(/\D/g, '').slice(0, 11);
+            if (v.length > 9) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+            else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
+            else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/, '$1.$2');
+            this.value = v;
+        });
+
+        // Indicador de carregamento
+        document.getElementById('formConsulta').addEventListener('submit', function () {
+            const btn = document.getElementById('btnSubmit');
+            btn.disabled = true;
+            document.getElementById('btnText').textContent = 'Consultando…';
+            document.getElementById('btnSpinner').style.display = 'inline-block';
+        });
+
+        // Mostrar IP público
+        fetch('https://api.ipify.org?format=json')
+            .then(r => r.json())
+            .then(d => {
+                const ip = d.ip;
+                const cadastrado = '189.22.231.82';
+                const match = ip === cadastrado;
+                document.getElementById('ipInfo').innerHTML =
+                    'Seu IP público: <strong>' + ip + '</strong>' +
+                    (match ? ' ✔ (cadastrado na NeoConsig)' : ' ✘ <span style="color:#c0392b">diferente do cadastrado (' + cadastrado + ')</span>');
+            })
+            .catch(() => { document.getElementById('ipInfo').textContent = 'Não foi possível verificar o IP público.'; });
+    </script>
+</body>
+</html>
