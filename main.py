@@ -91,7 +91,7 @@ TOKEN_URLS = [
 MARGEM_URL = f"{API_BASE}/consultar-margem"
 
 CLIENT_ID = os.getenv("NEOCONSIG_CLIENT_ID", "81")
-CLIENT_SECRET = os.getenv("NEOCONSIG_CLIENT_SECRET", "DLegtjCy7BQVfjxWDUNvfzneOb4xAYQMmSUlunOZ")
+CLIENT_SECRET = os.getenv("NEOCONSIG_CLIENT_SECRET", "DLegtjCy7BQVfjxWDUNvfzneOb4xAYQMmSUIunOZ")
 
 CONVENIOS = {
     "8": "Goiás",
