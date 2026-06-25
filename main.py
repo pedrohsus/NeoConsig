@@ -210,7 +210,7 @@ async def index(request: Request):
         "resultado": None,
         "erro": None,
         "convenios": CONVENIOS,
-        "form": {"cpf": "", "matricula": "", "codBanco": "958", "codConvenio": "8", "token": "", "senha": ""},
+        "form": {"cpf": "", "matricula": "", "codBanco": "0958", "codConvenio": "8", "token": "", "senha": ""},
     })
 
 
