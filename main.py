@@ -82,13 +82,11 @@ def log_response(status_code: int, headers: dict, body: str):
 # API NeoConsig — Produção (Cred BR)
 # ---------------------------------------------------------------------------
 BASE_URL = os.getenv("NEOCONSIG_BASE_URL", "https://wsst.neoconsig.com.br")
-API_BASE = f"{BASE_URL}/api-integracao/v1"
-TOKEN_URLS = [
-    f"{BASE_URL}/api/oauth/token",
-    f"{API_BASE}/oauth/token",
-    f"{BASE_URL}/oauth/token",
+TOKEN_URL = f"{BASE_URL}/api/oauth/token"
+MARGEM_URLS = [
+    f"{BASE_URL}/api-integracao/v2/consultar-margem",
+    f"{BASE_URL}/api-integracao/v1/consultar-margem",
 ]
-MARGEM_URL = f"{BASE_URL}/api-integracao/v2/consultar-margem"
 
 CLIENT_ID = os.getenv("NEOCONSIG_CLIENT_ID", "81")
 CLIENT_SECRET = os.getenv("NEOCONSIG_CLIENT_SECRET", "DLegtjCy7BQVfjxWDUNvfzneOb4xAYQMmSUIunOZ")
@@ -101,41 +99,26 @@ CONVENIOS = {
     "67": "Hortolândia",
 }
 
-_token_cache: dict = {"access_token": None, "expires_at": 0.0}
-
 
 async def _get_token(client: httpx.AsyncClient) -> str:
-    now = time.monotonic()
-    if _token_cache["access_token"] and now < _token_cache["expires_at"] - 5:
-        return _token_cache["access_token"]
-
     payload = {
         "grant_type": "client_credentials",
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
     }
 
-    last_resp = None
-    for url in TOKEN_URLS:
-        log_request("POST", url, {"Content-Type": "application/json"}, body=payload)
+    log_request("POST", TOKEN_URL, {"Content-Type": "application/json"}, body=payload)
 
-        resp = await client.post(
-            url,
-            json=payload,
-            headers={"Content-Type": "application/json; charset=utf-8"},
-        )
+    resp = await client.post(
+        TOKEN_URL,
+        json=payload,
+        headers={"Content-Type": "application/json; charset=utf-8"},
+    )
 
-        log_response(resp.status_code, dict(resp.headers), resp.text)
-        last_resp = resp
+    log_response(resp.status_code, dict(resp.headers), resp.text)
+    resp.raise_for_status()
 
-        if resp.status_code != 404:
-            break
-
-    last_resp.raise_for_status()
-
-    data = last_resp.json()
-    _token_cache["access_token"] = data["access_token"]
-    _token_cache["expires_at"] = now + data.get("expires_in", 25)
+    data = resp.json()
     return data["access_token"]
 
 
@@ -159,17 +142,23 @@ async def consultar_margem(cpf: str, matricula: str, cod_banco: str, cod_conveni
             "Accept": "application/json; charset=utf-8",
         }
 
-        log_request("GET", MARGEM_URL, headers, params=params)
+        last_resp = None
+        for margem_url in MARGEM_URLS:
+            log_request("GET", margem_url, headers, params=params)
 
-        resp = await client.get(MARGEM_URL, params=params, headers=headers)
+            resp = await client.get(margem_url, params=params, headers=headers)
 
-        log_response(resp.status_code, dict(resp.headers), resp.text)
+            log_response(resp.status_code, dict(resp.headers), resp.text)
+            last_resp = resp
 
-        result = {"status_code": resp.status_code}
+            if resp.status_code != 404:
+                break
+
+        result = {"status_code": last_resp.status_code, "url_usada": str(last_resp.url)}
         try:
-            result["data"] = resp.json()
+            result["data"] = last_resp.json()
         except (json.JSONDecodeError, ValueError):
-            result["data"] = {"raw": resp.text}
+            result["data"] = {"raw": last_resp.text}
 
         return result
 
@@ -273,7 +262,8 @@ async def consultar(
     if not msg:
         msg = str(data)
 
-    detail = json.dumps(data, ensure_ascii=False, indent=2) if isinstance(data, dict) else str(data)
+    url_info = f"URL: {result.get('url_usada', '?')}\n\n"
+    detail = url_info + (json.dumps(data, ensure_ascii=False, indent=2) if isinstance(data, dict) else str(data))
 
     return templates.TemplateResponse("index.html", {
         "request": request,
