@@ -210,7 +210,7 @@ async def index(request: Request):
         "resultado": None,
         "erro": None,
         "convenios": CONVENIOS,
-        "form": {"cpf": "", "matricula": "", "codBanco": "0958", "codConvenio": "8", "token": "", "senha": ""},
+        "form": {"cpf": "", "matricula": "", "codBanco": "958", "codConvenio": "8", "token": "", "senha": ""},
     })
 
 
@@ -238,11 +238,17 @@ async def consultar(
     try:
         result = await consultar_margem(cpf_limpo, matricula, codBanco, codConvenio, token, senha)
     except httpx.HTTPStatusError as exc:
+        try:
+            err_body = json.loads(exc.response.text)
+        except (json.JSONDecodeError, TypeError):
+            err_body = exc.response.text
+        detail = f"URL: {exc.response.url}\n\n{json.dumps(err_body, ensure_ascii=False, indent=2) if isinstance(err_body, dict) else err_body}"
         return templates.TemplateResponse("index.html", {
             "request": request,
             "resultado": None,
             "convenios": CONVENIOS,
             "erro": f"Erro HTTP {exc.response.status_code} na autenticação: {_format_api_error(exc.response.text)}",
+            "erro_detalhe": detail,
             "form": form_data,
         })
     except httpx.RequestError as exc:
