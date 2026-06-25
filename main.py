@@ -88,8 +88,8 @@ TOKEN_URLS = [
     f"{BASE_URL}/oauth/token",
 ]
 MARGEM_URLS = [
-    f"{BASE_URL}/api-integracao/v2/consultar-margem",
     f"{BASE_URL}/api-integracao/v1/consultar-margem",
+    f"{BASE_URL}/api-integracao/v2/consultar-margem",
 ]
 
 CLIENT_ID = os.getenv("NEOCONSIG_CLIENT_ID", "81")
