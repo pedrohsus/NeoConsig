@@ -82,7 +82,11 @@ def log_response(status_code: int, headers: dict, body: str):
 # API NeoConsig — Produção (Cred BR)
 # ---------------------------------------------------------------------------
 BASE_URL = os.getenv("NEOCONSIG_BASE_URL", "https://wsst.neoconsig.com.br")
-TOKEN_URL = f"{BASE_URL}/api-integracao/v1/oauth/token"
+TOKEN_URLS = [
+    f"{BASE_URL}/api-integracao/v2/oauth/token",
+    f"{BASE_URL}/api-integracao/v1/oauth/token",
+    f"{BASE_URL}/api/oauth/token",
+]
 MARGEM_URL = f"{BASE_URL}/api-integracao/v2/consultar-margem"
 
 CLIENT_ID = os.getenv("NEOCONSIG_CLIENT_ID", "81")
@@ -105,20 +109,27 @@ async def _get_token(client: httpx.AsyncClient) -> str:
     }
 
     t0 = time.monotonic()
-    log_request("POST", TOKEN_URL, {"Content-Type": "application/json"}, body=payload)
+    last_resp = None
 
-    resp = await client.post(
-        TOKEN_URL,
-        json=payload,
-        headers={"Content-Type": "application/json; charset=utf-8"},
-    )
+    for url in TOKEN_URLS:
+        log_request("POST", url, {"Content-Type": "application/json"}, body=payload)
+        resp = await client.post(
+            url,
+            json=payload,
+            headers={"Content-Type": "application/json; charset=utf-8"},
+        )
+        log_response(resp.status_code, dict(resp.headers), resp.text)
+        last_resp = resp
+
+        if resp.status_code != 404:
+            break
+        logger.info(json.dumps({"auth_fallback": f"404 em {url}, tentando próxima URL"}))
 
     auth_time = time.monotonic() - t0
-    log_response(resp.status_code, dict(resp.headers), resp.text)
-    logger.info(json.dumps({"auth_seconds": round(auth_time, 2)}))
-    resp.raise_for_status()
+    logger.info(json.dumps({"auth_seconds": round(auth_time, 2), "auth_url_usada": str(last_resp.url)}))
+    last_resp.raise_for_status()
 
-    data = resp.json()
+    data = last_resp.json()
     return data["access_token"]
 
 
