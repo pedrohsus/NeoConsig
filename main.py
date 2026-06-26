@@ -83,9 +83,8 @@ def log_response(status_code: int, headers: dict, body: str):
 # ---------------------------------------------------------------------------
 BASE_URL = os.getenv("NEOCONSIG_BASE_URL", "https://wsst.neoconsig.com.br")
 TOKEN_URLS = [
-    f"{BASE_URL}/api-integracao/v2/oauth/token",
+    f"{BASE_URL}/oauth/token",
     f"{BASE_URL}/api-integracao/v1/oauth/token",
-    f"{BASE_URL}/api/oauth/token",
 ]
 MARGEM_URL = f"{BASE_URL}/api-integracao/v2/consultar-margem"
 
