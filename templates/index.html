@@ -194,15 +194,24 @@
 
             <div id="csvValidacao" style="display:none;"></div>
 
-            <button class="btn" id="btnMassa" onclick="iniciarConsultaMassa()" disabled style="margin-top:1rem;">
-                <span id="btnMassaText">Consultar Margem</span>
-                <div class="spinner" id="btnMassaSpinner"></div>
-            </button>
+            <div class="row" style="margin-top:1rem;">
+                <div style="flex:2;">
+                    <button class="btn" id="btnMassa" onclick="iniciarConsultaMassa()" disabled>
+                        <span id="btnMassaText">Consultar Margem</span>
+                        <div class="spinner" id="btnMassaSpinner"></div>
+                    </button>
+                </div>
+                <div style="flex:1;">
+                    <button class="btn btn-secondary" id="btnParar" onclick="pararConsultaMassa()" style="display:none;background:#c0392b;margin-top:0;">Parar</button>
+                </div>
+            </div>
 
             <div id="progressContainer" style="display:none; margin-top:1rem;">
                 <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
                 <p id="progressText" style="font-size:.85rem;color:#555;text-align:center;"></p>
             </div>
+
+            <button class="btn" id="btnDownload" onclick="baixarResultado()" style="display:none;margin-top:.8rem;background:#27ae60;">Baixar Resultado (CSV)</button>
         </div>
     </div>
 
@@ -290,6 +299,9 @@
         });
 
         // --------------- CSV: consulta em massa ---------------
+        let currentJobId = null;
+        let pollingInterval = null;
+
         async function iniciarConsultaMassa() {
             if (registrosValidos.length === 0) return;
 
@@ -297,6 +309,8 @@
             btn.disabled = true;
             document.getElementById('btnMassaText').textContent = 'Processando…';
             document.getElementById('btnMassaSpinner').style.display = 'inline-block';
+            document.getElementById('btnParar').style.display = 'block';
+            document.getElementById('btnDownload').style.display = 'none';
 
             const progressContainer = document.getElementById('progressContainer');
             progressContainer.style.display = 'block';
@@ -312,39 +326,75 @@
             };
 
             try {
-                const resp = await fetch('/consultar-massa', {
+                const resp = await fetch('/iniciar-massa', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
                 });
+                const data = await resp.json();
+                currentJobId = data.job_id;
 
-                if (!resp.ok) {
-                    alert('Erro ao processar consulta em massa: ' + resp.status);
-                    return;
-                }
-
-                const blob = await resp.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                const disposition = resp.headers.get('Content-Disposition');
-                const match = disposition && disposition.match(/filename=(.+)/);
-                a.download = match ? match[1] : 'resultado_margem.csv';
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                window.URL.revokeObjectURL(url);
-
-                document.getElementById('progressFill').style.width = '100%';
-                document.getElementById('progressText').textContent = registrosValidos.length + ' / ' + registrosValidos.length + ' — Concluído! Arquivo baixado.';
+                pollingInterval = setInterval(verificarProgresso, 2000);
 
             } catch (err) {
-                alert('Erro: ' + err.message);
-            } finally {
-                btn.disabled = false;
-                document.getElementById('btnMassaText').textContent = 'Consultar Margem';
-                document.getElementById('btnMassaSpinner').style.display = 'none';
+                alert('Erro ao iniciar: ' + err.message);
+                resetarBotaoMassa();
             }
+        }
+
+        async function verificarProgresso() {
+            if (!currentJobId) return;
+
+            try {
+                const resp = await fetch('/progresso-massa/' + currentJobId);
+                const data = await resp.json();
+
+                const pct = data.total > 0 ? Math.round((data.processados / data.total) * 100) : 0;
+                document.getElementById('progressFill').style.width = pct + '%';
+
+                const tempoRestante = (data.total - data.processados);
+                const minutos = Math.floor(tempoRestante / 60);
+                const segundos = tempoRestante % 60;
+                const tempoStr = minutos > 0 ? minutos + 'min ' + segundos + 's' : segundos + 's';
+
+                document.getElementById('progressText').textContent =
+                    data.processados + ' / ' + data.total + ' (' + pct + '%)' +
+                    (data.finalizado || data.cancelado ? '' : ' — restante: ~' + tempoStr);
+
+                if (data.finalizado || data.cancelado) {
+                    clearInterval(pollingInterval);
+                    pollingInterval = null;
+
+                    const status = data.cancelado ? 'Cancelado' : 'Concluído';
+                    document.getElementById('progressText').textContent =
+                        data.processados + ' / ' + data.total + ' — ' + status + '!';
+                    document.getElementById('progressFill').style.background = data.cancelado ? '#e67e22' : '#27ae60';
+
+                    document.getElementById('btnDownload').style.display = 'block';
+                    resetarBotaoMassa();
+                }
+            } catch (err) {
+                console.error('Erro no polling:', err);
+            }
+        }
+
+        async function pararConsultaMassa() {
+            if (!currentJobId) return;
+            await fetch('/cancelar-massa/' + currentJobId, { method: 'POST' });
+            document.getElementById('btnParar').style.display = 'none';
+        }
+
+        function baixarResultado() {
+            if (!currentJobId) return;
+            window.location.href = '/download-massa/' + currentJobId;
+        }
+
+        function resetarBotaoMassa() {
+            const btn = document.getElementById('btnMassa');
+            btn.disabled = false;
+            document.getElementById('btnMassaText').textContent = 'Consultar Margem';
+            document.getElementById('btnMassaSpinner').style.display = 'none';
+            document.getElementById('btnParar').style.display = 'none';
         }
     </script>
 </body>

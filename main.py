@@ -341,22 +341,41 @@ async def validar_csv(arquivo: UploadFile = File(...)):
     }
 
 
-@app.post("/consultar-massa")
-async def consultar_massa(request: Request):
-    body = await request.json()
-    registros = body["registros"]
-    cod_banco = body.get("codBanco", "958")
-    cod_convenio = body.get("codConvenio", "8")
-    token_consig = body.get("token", "")
-    senha = body.get("senha", "")
+_massa_jobs: dict[str, dict] = {}
 
-    resultados = []
+
+@app.post("/iniciar-massa")
+async def iniciar_massa(request: Request):
+    body = await request.json()
+    job_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    _massa_jobs[job_id] = {
+        "registros": body["registros"],
+        "codBanco": body.get("codBanco", "958"),
+        "codConvenio": body.get("codConvenio", "8"),
+        "token": body.get("token", ""),
+        "senha": body.get("senha", ""),
+        "resultados": [],
+        "processados": 0,
+        "total": len(body["registros"]),
+        "cancelado": False,
+        "finalizado": False,
+    }
+    asyncio.create_task(_processar_massa(job_id))
+    return {"job_id": job_id}
+
+
+async def _processar_massa(job_id: str):
+    job = _massa_jobs[job_id]
+    registros = job["registros"]
 
     for i, reg in enumerate(registros):
+        if job["cancelado"]:
+            break
+
         try:
             result = await consultar_margem(
                 reg["cpf"], reg["matricula"],
-                cod_banco, cod_convenio, token_consig, senha,
+                job["codBanco"], job["codConvenio"], job["token"], job["senha"],
             )
             status = result["status_code"]
             data = result["data"]
@@ -370,9 +389,9 @@ async def consultar_massa(request: Request):
             if status == 200 and "dadosConsulta" in data:
                 margens = data["dadosConsulta"].get("margens", [])
                 for m in margens:
-                    linha[f"produto"] = m.get("pro_nome", "")
-                    linha[f"margem"] = m.get("margem", 0)
-                    linha[f"margem_consignavel"] = m.get("margem_consignavel", 0)
+                    linha["produto"] = m.get("pro_nome", "")
+                    linha["margem"] = m.get("margem", 0)
+                    linha["margem_consignavel"] = m.get("margem_consignavel", 0)
                 linha["erro"] = ""
             else:
                 linha["produto"] = ""
@@ -380,10 +399,10 @@ async def consultar_massa(request: Request):
                 linha["margem_consignavel"] = ""
                 linha["erro"] = _extract_error_message(data)
 
-            resultados.append(linha)
+            job["resultados"].append(linha)
 
         except Exception as exc:
-            resultados.append({
+            job["resultados"].append({
                 "cpf": reg["cpf"],
                 "matricula": reg["matricula"],
                 "status": "ERRO",
@@ -393,19 +412,51 @@ async def consultar_massa(request: Request):
                 "erro": str(exc),
             })
 
-        if i < len(registros) - 1:
+        job["processados"] = i + 1
+
+        if i < len(registros) - 1 and not job["cancelado"]:
             await asyncio.sleep(1)
+
+    job["finalizado"] = True
+
+
+@app.get("/progresso-massa/{job_id}")
+async def progresso_massa(job_id: str):
+    job = _massa_jobs.get(job_id)
+    if not job:
+        return {"erro": "Job não encontrado"}
+    return {
+        "processados": job["processados"],
+        "total": job["total"],
+        "finalizado": job["finalizado"],
+        "cancelado": job["cancelado"],
+    }
+
+
+@app.post("/cancelar-massa/{job_id}")
+async def cancelar_massa(job_id: str):
+    job = _massa_jobs.get(job_id)
+    if job:
+        job["cancelado"] = True
+    return {"ok": True}
+
+
+@app.get("/download-massa/{job_id}")
+async def download_massa(job_id: str):
+    job = _massa_jobs.get(job_id)
+    if not job or not job["resultados"]:
+        return {"erro": "Sem resultados"}
 
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=["cpf", "matricula", "status", "produto", "margem", "margem_consignavel", "erro"], delimiter=";")
     writer.writeheader()
-    writer.writerows(resultados)
+    writer.writerows(job["resultados"])
 
     csv_bytes = output.getvalue().encode("utf-8-sig")
     return StreamingResponse(
         io.BytesIO(csv_bytes),
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=resultado_margem_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"},
+        headers={"Content-Disposition": f"attachment; filename=resultado_margem_{job_id}.csv"},
     )
 
 
