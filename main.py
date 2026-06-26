@@ -86,7 +86,12 @@ TOKEN_URLS = [
     f"{BASE_URL}/oauth/token",
     f"{BASE_URL}/api-integracao/v1/oauth/token",
 ]
-MARGEM_URL = f"{BASE_URL}/api-integracao/v2/consultar-margem"
+MARGEM_URLS = [
+    f"{BASE_URL}/api-integracao/v2/consultar-margem",
+    f"{BASE_URL}/api-integracao/v1/consultar-margem",
+    f"{BASE_URL}/v2/consultar-margem",
+    f"{BASE_URL}/consultar-margem",
+]
 
 CLIENT_ID = os.getenv("NEOCONSIG_CLIENT_ID", "81")
 CLIENT_SECRET = os.getenv("NEOCONSIG_CLIENT_SECRET", "DLegtjCy7BQVfjxWDUNvfzneOb4xAYQMmSUIunOZ")
@@ -153,19 +158,26 @@ async def consultar_margem(cpf: str, matricula: str, cod_banco: str, cod_conveni
         }
 
         t0 = time.monotonic()
-        log_request("GET", MARGEM_URL, headers, params=params)
+        last_resp = None
 
-        resp = await client.get(MARGEM_URL, params=params, headers=headers)
+        for margem_url in MARGEM_URLS:
+            log_request("GET", margem_url, headers, params=params)
+            resp = await client.get(margem_url, params=params, headers=headers)
+            log_response(resp.status_code, dict(resp.headers), resp.text)
+            last_resp = resp
+
+            if resp.status_code not in (404, 401):
+                break
+            logger.info(json.dumps({"margem_fallback": f"{resp.status_code} em {margem_url}, tentando próxima URL"}))
 
         query_time = time.monotonic() - t0
-        log_response(resp.status_code, dict(resp.headers), resp.text)
-        logger.info(json.dumps({"query_seconds": round(query_time, 2)}))
+        logger.info(json.dumps({"query_seconds": round(query_time, 2), "margem_url_usada": str(last_resp.url)}))
 
-        result = {"status_code": resp.status_code, "url_usada": str(resp.url)}
+        result = {"status_code": last_resp.status_code, "url_usada": str(last_resp.url)}
         try:
-            result["data"] = resp.json()
+            result["data"] = last_resp.json()
         except (json.JSONDecodeError, ValueError):
-            result["data"] = {"raw": resp.text}
+            result["data"] = {"raw": last_resp.text}
 
         return result
 
