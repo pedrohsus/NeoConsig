@@ -8,16 +8,18 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f2f5; color: #1a1a2e; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 2rem 1rem; }
         h1 { font-size: 1.6rem; margin-bottom: 1.5rem; color: #16213e; }
-        .card { background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.08); padding: 2rem; width: 100%; max-width: 640px; margin-bottom: 1.5rem; }
+        .card { background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.08); padding: 2rem; width: 100%; max-width: 720px; margin-bottom: 1.5rem; }
         label { display: block; font-weight: 600; margin-bottom: .3rem; font-size: .9rem; }
-        input[type="text"] { width: 100%; padding: .6rem .8rem; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; margin-bottom: 1rem; transition: border-color .2s; }
+        input[type="text"], input[type="file"] { width: 100%; padding: .6rem .8rem; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; margin-bottom: 1rem; transition: border-color .2s; }
         input[type="text"]:focus, select:focus { outline: none; border-color: #0f3460; box-shadow: 0 0 0 3px rgba(15,52,96,.12); }
         select { width: 100%; padding: .6rem .8rem; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; margin-bottom: 1rem; background: #fff; transition: border-color .2s; }
         .row { display: flex; gap: 1rem; }
         .row > div { flex: 1; }
-        button { display: block; width: 100%; padding: .75rem; background: #0f3460; color: #fff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background .2s; }
-        button:hover { background: #16213e; }
-        button:disabled { background: #999; cursor: wait; }
+        .btn { display: block; width: 100%; padding: .75rem; background: #0f3460; color: #fff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background .2s; }
+        .btn:hover { background: #16213e; }
+        .btn:disabled { background: #999; cursor: wait; }
+        .btn-secondary { background: #6c757d; margin-top: .5rem; }
+        .btn-secondary:hover { background: #545b62; }
         .erro { background: #ffeaea; border-left: 4px solid #e74c3c; padding: 1rem 1.2rem; border-radius: 8px; margin-bottom: 1rem; color: #c0392b; font-size: .95rem; word-break: break-word; }
         .section-title { font-size: 1.1rem; font-weight: 700; margin: 1.2rem 0 .6rem; color: #0f3460; border-bottom: 2px solid #e8e8e8; padding-bottom: .3rem; }
         .dados-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem 1.5rem; font-size: .93rem; }
@@ -30,115 +32,202 @@
         .meta { font-size: .85rem; color: #777; margin-top: 1rem; }
         .spinner { display: none; width: 18px; height: 18px; border: 3px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin .6s linear infinite; margin: 0 auto; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        .tabs { display: flex; gap: 0; margin-bottom: 1.5rem; }
+        .tab { padding: .6rem 1.5rem; background: #e0e0e0; border: none; cursor: pointer; font-size: .95rem; font-weight: 600; color: #555; transition: all .2s; }
+        .tab:first-child { border-radius: 8px 0 0 8px; }
+        .tab:last-child { border-radius: 0 8px 8px 0; }
+        .tab.active { background: #0f3460; color: #fff; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .progress-bar { width: 100%; height: 8px; background: #e0e0e0; border-radius: 4px; margin: 1rem 0; overflow: hidden; }
+        .progress-fill { height: 100%; background: #0f3460; border-radius: 4px; transition: width .3s; }
+        .csv-info { background: #e8f4e8; border-left: 4px solid #27ae60; padding: 1rem 1.2rem; border-radius: 8px; margin-bottom: 1rem; color: #1e7e34; font-size: .95rem; }
+        .csv-erro { background: #ffeaea; border-left: 4px solid #e74c3c; padding: 1rem 1.2rem; border-radius: 8px; margin-bottom: 1rem; color: #c0392b; font-size: .95rem; }
     </style>
 </head>
 <body>
     <h1>NeoConsig — Consulta de Margem Consignável</h1>
     <div id="ipInfo" style="font-size:.8rem;color:#777;margin-bottom:.8rem;">Seu IP público: carregando…</div>
 
-    <div class="card">
-        <form id="formConsulta" method="post" action="/consultar">
-            <label for="cpf">CPF</label>
-            <input type="text" id="cpf" name="cpf" value="{{ form.cpf }}" placeholder="000.000.000-00" required maxlength="14">
+    <div class="tabs">
+        <button class="tab active" onclick="switchTab('individual')">Consulta Individual</button>
+        <button class="tab" onclick="switchTab('massa')">Consulta em Massa</button>
+    </div>
 
-            <label for="matricula">Matrícula</label>
-            <input type="text" id="matricula" name="matricula" value="{{ form.matricula }}" placeholder="Número da matrícula" required>
+    <!-- ==================== ABA INDIVIDUAL ==================== -->
+    <div id="tab-individual" class="tab-content active">
+        <div class="card">
+            <form id="formConsulta" method="post" action="/consultar">
+                <label for="cpf">CPF</label>
+                <input type="text" id="cpf" name="cpf" value="{{ form.cpf }}" placeholder="000.000.000-00" required maxlength="14">
 
+                <label for="matricula">Matrícula</label>
+                <input type="text" id="matricula" name="matricula" value="{{ form.matricula }}" placeholder="Número da matrícula" required>
+
+                <div class="row">
+                    <div>
+                        <label for="codBanco">Cód. Banco</label>
+                        <input type="text" id="codBanco" name="codBanco" value="{{ form.codBanco }}">
+                    </div>
+                    <div>
+                        <label for="codConvenio">Convênio</label>
+                        <select id="codConvenio" name="codConvenio">
+                            {% for cod, nome in convenios.items() %}
+                            <option value="{{ cod }}" {% if form.codConvenio == cod %}selected{% endif %}>{{ cod }} — {{ nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div>
+                        <label for="token">Token Consignatário</label>
+                        <input type="text" id="token" name="token" value="{{ form.token }}">
+                    </div>
+                    <div>
+                        <label for="senha">Senha Consignatária</label>
+                        <input type="text" id="senha" name="senha" value="{{ form.senha }}">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn" id="btnSubmit">
+                    <span id="btnText">Consultar Margem</span>
+                    <div class="spinner" id="btnSpinner"></div>
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="limparFormulario()">Limpar</button>
+            </form>
+        </div>
+
+        {% if erro %}
+        <div class="card">
+            <div class="erro">{{ erro }}</div>
+            {% if erro_detalhe %}
+            <details style="margin-top:.8rem;font-size:.85rem;">
+                <summary style="cursor:pointer;color:#555;">Resposta completa da API</summary>
+                <pre style="background:#f5f5f5;padding:.8rem;border-radius:6px;margin-top:.4rem;overflow-x:auto;font-size:.8rem;">{{ erro_detalhe }}</pre>
+            </details>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if resultado %}
+        <div class="card">
+            {% if resultado.dadosConsulta and resultado.dadosConsulta.dadosFuncionais %}
+            {% set df = resultado.dadosConsulta.dadosFuncionais %}
+            <div class="section-title">Dados Funcionais</div>
+            <dl class="dados-grid">
+                <dt>Secretaria</dt><dd>{{ df.secretaria or '—' }}</dd>
+                <dt>Categoria</dt><dd>{{ df.categoria or '—' }}</dd>
+                <dt>Situação</dt><dd>{{ df.situacao or '—' }}</dd>
+                <dt>Cargo</dt><dd>{{ df.cargo or '—' }}</dd>
+                <dt>Data Admissão</dt><dd>{{ df.data_admissao or '—' }}</dd>
+            </dl>
+            {% endif %}
+
+            {% if resultado.dadosConsulta and resultado.dadosConsulta.margens %}
+            <div class="section-title">Margens</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Produto</th>
+                        <th>Margem (R$)</th>
+                        <th>Margem Consignável (R$)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in resultado.dadosConsulta.margens %}
+                    <tr>
+                        <td>{{ m.pro_nome }}</td>
+                        <td>{{ "%.2f"|format(m.margem) }}</td>
+                        <td>{{ "%.2f"|format(m.margem_consignavel) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+
+            {% if resultado.sucesso %}
+            <div class="section-title">Status</div>
+            <p>{{ resultado.sucesso.mensagem }} (código {{ resultado.sucesso.codigo }})</p>
+            {% endif %}
+
+            <div class="meta">
+                {% if resultado.idOperacao %}ID Operação: <strong>{{ resultado.idOperacao }}</strong> · {% endif %}
+                {% if resultado.dtHrConsulta %}Data/Hora: <strong>{{ resultado.dtHrConsulta }}</strong>{% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ==================== ABA MASSA ==================== -->
+    <div id="tab-massa" class="tab-content">
+        <div class="card">
+            <div class="section-title">1. Configurações</div>
             <div class="row">
                 <div>
-                    <label for="codBanco">Cód. Banco</label>
-                    <input type="text" id="codBanco" name="codBanco" value="{{ form.codBanco }}">
+                    <label for="massaCodBanco">Cód. Banco</label>
+                    <input type="text" id="massaCodBanco" value="958">
                 </div>
                 <div>
-                    <label for="codConvenio">Convênio</label>
-                    <select id="codConvenio" name="codConvenio">
+                    <label for="massaCodConvenio">Convênio</label>
+                    <select id="massaCodConvenio">
                         {% for cod, nome in convenios.items() %}
-                        <option value="{{ cod }}" {% if form.codConvenio == cod %}selected{% endif %}>{{ cod }} — {{ nome }}</option>
+                        <option value="{{ cod }}">{{ cod }} — {{ nome }}</option>
                         {% endfor %}
                     </select>
                 </div>
             </div>
-
             <div class="row">
                 <div>
-                    <label for="token">Token Consignatário</label>
-                    <input type="text" id="token" name="token" value="{{ form.token }}">
+                    <label for="massaToken">Token Consignatário</label>
+                    <input type="text" id="massaToken">
                 </div>
                 <div>
-                    <label for="senha">Senha Consignatária</label>
-                    <input type="text" id="senha" name="senha" value="{{ form.senha }}">
+                    <label for="massaSenha">Senha Consignatária</label>
+                    <input type="text" id="massaSenha">
                 </div>
             </div>
 
-            <button type="submit" id="btnSubmit">
-                <span id="btnText">Consultar Margem</span>
-                <div class="spinner" id="btnSpinner"></div>
+            <div class="section-title" style="margin-top:1.5rem;">2. Upload do CSV</div>
+            <p style="font-size:.85rem;color:#777;margin-bottom:.8rem;">Arquivo CSV com separador <strong>;</strong> (ponto-e-vírgula) e colunas <strong>CPF</strong> e <strong>Matricula</strong>.</p>
+            <input type="file" id="csvFile" accept=".csv">
+
+            <div id="csvValidacao" style="display:none;"></div>
+
+            <button class="btn" id="btnMassa" onclick="iniciarConsultaMassa()" disabled style="margin-top:1rem;">
+                <span id="btnMassaText">Consultar Margem</span>
+                <div class="spinner" id="btnMassaSpinner"></div>
             </button>
-        </form>
-    </div>
 
-    {% if erro %}
-    <div class="card">
-        <div class="erro">{{ erro }}</div>
-        {% if erro_detalhe %}
-        <details style="margin-top:.8rem;font-size:.85rem;">
-            <summary style="cursor:pointer;color:#555;">Resposta completa da API</summary>
-            <pre style="background:#f5f5f5;padding:.8rem;border-radius:6px;margin-top:.4rem;overflow-x:auto;font-size:.8rem;">{{ erro_detalhe }}</pre>
-        </details>
-        {% endif %}
-    </div>
-    {% endif %}
-
-    {% if resultado %}
-    <div class="card">
-        {% if resultado.dadosConsulta and resultado.dadosConsulta.dadosFuncionais %}
-        {% set df = resultado.dadosConsulta.dadosFuncionais %}
-        <div class="section-title">Dados Funcionais</div>
-        <dl class="dados-grid">
-            <dt>Secretaria</dt><dd>{{ df.secretaria or '—' }}</dd>
-            <dt>Categoria</dt><dd>{{ df.categoria or '—' }}</dd>
-            <dt>Situação</dt><dd>{{ df.situacao or '—' }}</dd>
-            <dt>Cargo</dt><dd>{{ df.cargo or '—' }}</dd>
-            <dt>Data Admissão</dt><dd>{{ df.data_admissao or '—' }}</dd>
-        </dl>
-        {% endif %}
-
-        {% if resultado.dadosConsulta and resultado.dadosConsulta.margens %}
-        <div class="section-title">Margens</div>
-        <table>
-            <thead>
-                <tr>
-                    <th>Produto</th>
-                    <th>Margem (R$)</th>
-                    <th>Margem Consignável (R$)</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for m in resultado.dadosConsulta.margens %}
-                <tr>
-                    <td>{{ m.pro_nome }}</td>
-                    <td>{{ "%.2f"|format(m.margem) }}</td>
-                    <td>{{ "%.2f"|format(m.margem_consignavel) }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% endif %}
-
-        {% if resultado.sucesso %}
-        <div class="section-title">Status</div>
-        <p>{{ resultado.sucesso.mensagem }} (código {{ resultado.sucesso.codigo }})</p>
-        {% endif %}
-
-        <div class="meta">
-            {% if resultado.idOperacao %}ID Operação: <strong>{{ resultado.idOperacao }}</strong> · {% endif %}
-            {% if resultado.dtHrConsulta %}Data/Hora: <strong>{{ resultado.dtHrConsulta }}</strong>{% endif %}
+            <div id="progressContainer" style="display:none; margin-top:1rem;">
+                <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+                <p id="progressText" style="font-size:.85rem;color:#555;text-align:center;"></p>
+            </div>
         </div>
     </div>
-    {% endif %}
 
     <script>
-        // Máscara de CPF
+        // --------------- Tabs ---------------
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.getElementById('tab-' + tab).classList.add('active');
+            document.querySelector('.tab[onclick*="' + tab + '"]').classList.add('active');
+        }
+
+        // --------------- Limpar ---------------
+        function limparFormulario() {
+            document.getElementById('cpf').value = '';
+            document.getElementById('matricula').value = '';
+            document.getElementById('token').value = '';
+            document.getElementById('senha').value = '';
+            const erroCards = document.querySelectorAll('.erro');
+            erroCards.forEach(e => { if (e.closest('.card')) e.closest('.card').style.display = 'none'; });
+            const resultCards = document.querySelectorAll('.section-title');
+            resultCards.forEach(e => { if (e.closest('.card') && e.closest('#tab-individual')) e.closest('.card').style.display = 'none'; });
+        }
+
+        // --------------- Máscara de CPF ---------------
         const cpfInput = document.getElementById('cpf');
         cpfInput.addEventListener('input', function () {
             let v = this.value.replace(/\D/g, '').slice(0, 11);
@@ -148,7 +237,7 @@
             this.value = v;
         });
 
-        // Indicador de carregamento
+        // --------------- Indicador de carregamento (individual) ---------------
         document.getElementById('formConsulta').addEventListener('submit', function () {
             const btn = document.getElementById('btnSubmit');
             btn.disabled = true;
@@ -156,18 +245,107 @@
             document.getElementById('btnSpinner').style.display = 'inline-block';
         });
 
-        // Mostrar IP público
+        // --------------- IP público ---------------
+        const ipsLiberados = {{ ips_liberados | tojson }};
         fetch('https://api.ipify.org?format=json')
             .then(r => r.json())
             .then(d => {
                 const ip = d.ip;
-                const cadastrado = '189.22.231.82';
-                const match = ip === cadastrado;
+                const match = ipsLiberados.includes(ip);
                 document.getElementById('ipInfo').innerHTML =
                     'Seu IP público: <strong>' + ip + '</strong>' +
-                    (match ? ' ✔ (cadastrado na NeoConsig)' : ' ✘ <span style="color:#c0392b">diferente do cadastrado (' + cadastrado + ')</span>');
+                    (match ? ' ✔ (liberado na NeoConsig)' : ' ✘ <span style="color:#c0392b">não cadastrado na NeoConsig</span>');
             })
             .catch(() => { document.getElementById('ipInfo').textContent = 'Não foi possível verificar o IP público.'; });
+
+        // --------------- CSV: validar ---------------
+        let registrosValidos = [];
+
+        document.getElementById('csvFile').addEventListener('change', async function () {
+            const file = this.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('arquivo', file);
+
+            const resp = await fetch('/validar-csv', { method: 'POST', body: formData });
+            const data = await resp.json();
+
+            const div = document.getElementById('csvValidacao');
+            div.style.display = 'block';
+
+            if (data.erro) {
+                div.innerHTML = '<div class="csv-erro">' + data.erro + '</div>';
+                document.getElementById('btnMassa').disabled = true;
+                registrosValidos = [];
+                return;
+            }
+
+            registrosValidos = data.registros;
+            div.innerHTML = '<div class="csv-info">' +
+                '<strong>' + data.validos + '</strong> registros válidos de <strong>' + data.total + '</strong> linhas' +
+                (data.invalidos > 0 ? ' (<span style="color:#c0392b">' + data.invalidos + ' inválidos</span>)' : '') +
+                '</div>';
+            document.getElementById('btnMassa').disabled = false;
+        });
+
+        // --------------- CSV: consulta em massa ---------------
+        async function iniciarConsultaMassa() {
+            if (registrosValidos.length === 0) return;
+
+            const btn = document.getElementById('btnMassa');
+            btn.disabled = true;
+            document.getElementById('btnMassaText').textContent = 'Processando…';
+            document.getElementById('btnMassaSpinner').style.display = 'inline-block';
+
+            const progressContainer = document.getElementById('progressContainer');
+            progressContainer.style.display = 'block';
+            document.getElementById('progressFill').style.width = '0%';
+            document.getElementById('progressText').textContent = '0 / ' + registrosValidos.length;
+
+            const payload = {
+                registros: registrosValidos,
+                codBanco: document.getElementById('massaCodBanco').value,
+                codConvenio: document.getElementById('massaCodConvenio').value,
+                token: document.getElementById('massaToken').value,
+                senha: document.getElementById('massaSenha').value,
+            };
+
+            try {
+                const resp = await fetch('/consultar-massa', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!resp.ok) {
+                    alert('Erro ao processar consulta em massa: ' + resp.status);
+                    return;
+                }
+
+                const blob = await resp.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const disposition = resp.headers.get('Content-Disposition');
+                const match = disposition && disposition.match(/filename=(.+)/);
+                a.download = match ? match[1] : 'resultado_margem.csv';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+
+                document.getElementById('progressFill').style.width = '100%';
+                document.getElementById('progressText').textContent = registrosValidos.length + ' / ' + registrosValidos.length + ' — Concluído! Arquivo baixado.';
+
+            } catch (err) {
+                alert('Erro: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                document.getElementById('btnMassaText').textContent = 'Consultar Margem';
+                document.getElementById('btnMassaSpinner').style.display = 'none';
+            }
+        }
     </script>
 </body>
 </html>

@@ -1,13 +1,16 @@
 import os
+import io
+import csv
 import time
 import json
+import asyncio
 import logging
 import re
 from datetime import datetime, timezone
 
 import httpx
-from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Form, Request, UploadFile, File
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
 # ---------------------------------------------------------------------------
@@ -91,6 +94,8 @@ MARGEM_URL = f"{BASE_URL}/api-integracao/v2/consultar-margem"
 CLIENT_ID = os.getenv("NEOCONSIG_CLIENT_ID", "81")
 CLIENT_SECRET = os.getenv("NEOCONSIG_CLIENT_SECRET", "DLegtjCy7BQVfjxWDUNvfzneOb4xAYQMmSUIunOZ")
 
+IPS_LIBERADOS = ["189.22.231.82", "200.216.93.115"]
+
 CONVENIOS = {
     "8": "Goiás",
     "70": "São Gonçalo",
@@ -170,14 +175,6 @@ async def consultar_margem(cpf: str, matricula: str, cod_banco: str, cod_conveni
         return result
 
 
-def _format_api_error(text: str) -> str:
-    try:
-        data = json.loads(text)
-        return _extract_error_message(data) or text
-    except (json.JSONDecodeError, TypeError):
-        return text
-
-
 def _extract_error_message(data) -> str:
     if not isinstance(data, dict):
         return str(data)
@@ -195,6 +192,14 @@ def _extract_error_message(data) -> str:
     return ""
 
 
+def _format_api_error(text: str) -> str:
+    try:
+        data = json.loads(text)
+        return _extract_error_message(data) or text
+    except (json.JSONDecodeError, TypeError):
+        return text
+
+
 # ---------------------------------------------------------------------------
 # FastAPI
 # ---------------------------------------------------------------------------
@@ -209,6 +214,7 @@ async def index(request: Request):
         "resultado": None,
         "erro": None,
         "convenios": CONVENIOS,
+        "ips_liberados": IPS_LIBERADOS,
         "form": {"cpf": "", "matricula": "", "codBanco": "958", "codConvenio": "8", "token": "", "senha": ""},
     })
 
@@ -246,6 +252,7 @@ async def consultar(
             "request": request,
             "resultado": None,
             "convenios": CONVENIOS,
+            "ips_liberados": IPS_LIBERADOS,
             "erro": f"Erro HTTP {exc.response.status_code} na autenticação: {_format_api_error(exc.response.text)}",
             "erro_detalhe": detail,
             "form": form_data,
@@ -255,6 +262,7 @@ async def consultar(
             "request": request,
             "resultado": None,
             "convenios": CONVENIOS,
+            "ips_liberados": IPS_LIBERADOS,
             "erro": f"Erro de conexão: {exc}",
             "form": form_data,
         })
@@ -267,6 +275,7 @@ async def consultar(
             "request": request,
             "resultado": data,
             "convenios": CONVENIOS,
+            "ips_liberados": IPS_LIBERADOS,
             "erro": None,
             "form": form_data,
         })
@@ -282,10 +291,122 @@ async def consultar(
         "request": request,
         "resultado": None,
         "convenios": CONVENIOS,
+        "ips_liberados": IPS_LIBERADOS,
         "erro": f"HTTP {status} — {msg}",
         "erro_detalhe": detail,
         "form": form_data,
     })
+
+
+# ---------------------------------------------------------------------------
+# Consulta em massa (CSV)
+# ---------------------------------------------------------------------------
+@app.post("/validar-csv")
+async def validar_csv(arquivo: UploadFile = File(...)):
+    content = await arquivo.read()
+    text = content.decode("utf-8-sig", errors="replace")
+    reader = csv.DictReader(io.StringIO(text), delimiter=";")
+
+    if not reader.fieldnames:
+        return {"erro": "Arquivo CSV vazio ou sem cabeçalho."}
+
+    headers_lower = [h.strip().lower() for h in reader.fieldnames]
+    cpf_col = None
+    mat_col = None
+    for i, h in enumerate(headers_lower):
+        if h in ("cpf", "cpf_servidor"):
+            cpf_col = reader.fieldnames[i].strip()
+        if h in ("matricula", "matrícula", "matricula_servidor"):
+            mat_col = reader.fieldnames[i].strip()
+
+    if not cpf_col or not mat_col:
+        return {"erro": f"Colunas 'CPF' e 'Matricula' não encontradas. Colunas detectadas: {reader.fieldnames}"}
+
+    registros = []
+    invalidos = 0
+    for row in reader:
+        cpf_raw = (row.get(cpf_col) or "").strip()
+        mat_raw = (row.get(mat_col) or "").strip()
+        cpf_limpo = re.sub(r"\D", "", cpf_raw)
+        if len(cpf_limpo) == 11 and mat_raw:
+            registros.append({"cpf": cpf_limpo, "matricula": mat_raw})
+        else:
+            invalidos += 1
+
+    return {
+        "total": len(registros) + invalidos,
+        "validos": len(registros),
+        "invalidos": invalidos,
+        "registros": registros,
+    }
+
+
+@app.post("/consultar-massa")
+async def consultar_massa(request: Request):
+    body = await request.json()
+    registros = body["registros"]
+    cod_banco = body.get("codBanco", "958")
+    cod_convenio = body.get("codConvenio", "8")
+    token_consig = body.get("token", "")
+    senha = body.get("senha", "")
+
+    resultados = []
+
+    for i, reg in enumerate(registros):
+        try:
+            result = await consultar_margem(
+                reg["cpf"], reg["matricula"],
+                cod_banco, cod_convenio, token_consig, senha,
+            )
+            status = result["status_code"]
+            data = result["data"]
+
+            linha = {
+                "cpf": reg["cpf"],
+                "matricula": reg["matricula"],
+                "status": status,
+            }
+
+            if status == 200 and "dadosConsulta" in data:
+                margens = data["dadosConsulta"].get("margens", [])
+                for m in margens:
+                    linha[f"produto"] = m.get("pro_nome", "")
+                    linha[f"margem"] = m.get("margem", 0)
+                    linha[f"margem_consignavel"] = m.get("margem_consignavel", 0)
+                linha["erro"] = ""
+            else:
+                linha["produto"] = ""
+                linha["margem"] = ""
+                linha["margem_consignavel"] = ""
+                linha["erro"] = _extract_error_message(data)
+
+            resultados.append(linha)
+
+        except Exception as exc:
+            resultados.append({
+                "cpf": reg["cpf"],
+                "matricula": reg["matricula"],
+                "status": "ERRO",
+                "produto": "",
+                "margem": "",
+                "margem_consignavel": "",
+                "erro": str(exc),
+            })
+
+        if i < len(registros) - 1:
+            await asyncio.sleep(1)
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=["cpf", "matricula", "status", "produto", "margem", "margem_consignavel", "erro"], delimiter=";")
+    writer.writeheader()
+    writer.writerows(resultados)
+
+    csv_bytes = output.getvalue().encode("utf-8-sig")
+    return StreamingResponse(
+        io.BytesIO(csv_bytes),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=resultado_margem_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"},
+    )
 
 
 if __name__ == "__main__":
