@@ -211,7 +211,14 @@
                 <p id="progressText" style="font-size:.85rem;color:#555;text-align:center;"></p>
             </div>
 
-            <button class="btn" id="btnDownload" onclick="baixarResultado()" style="display:none;margin-top:.8rem;background:#27ae60;">Baixar Resultado (CSV)</button>
+            <div class="row" id="downloadButtons" style="display:none;margin-top:.8rem;gap:.5rem;">
+                <div style="flex:1;">
+                    <button class="btn" onclick="baixarResultado()" style="background:#27ae60;">Baixar Consultados (CSV)</button>
+                </div>
+                <div style="flex:1;">
+                    <button class="btn" id="btnPendentes" onclick="baixarPendentes()" style="background:#e67e22;">Baixar Pendentes (CSV)</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -310,7 +317,7 @@
             document.getElementById('btnMassaText').textContent = 'Processando…';
             document.getElementById('btnMassaSpinner').style.display = 'inline-block';
             document.getElementById('btnParar').style.display = 'block';
-            document.getElementById('btnDownload').style.display = 'none';
+            document.getElementById('downloadButtons').style.display = 'none';
 
             const progressContainer = document.getElementById('progressContainer');
             progressContainer.style.display = 'block';
@@ -370,7 +377,10 @@
                         data.processados + ' / ' + data.total + ' — ' + status + '!';
                     document.getElementById('progressFill').style.background = data.cancelado ? '#e67e22' : '#27ae60';
 
-                    document.getElementById('btnDownload').style.display = 'block';
+                    document.getElementById('downloadButtons').style.display = 'flex';
+                    if (!data.cancelado || data.processados >= data.total) {
+                        document.getElementById('btnPendentes').style.display = 'none';
+                    }
                     resetarBotaoMassa();
                 }
             } catch (err) {
@@ -387,6 +397,11 @@
         function baixarResultado() {
             if (!currentJobId) return;
             window.location.href = '/download-massa/' + currentJobId;
+        }
+
+        function baixarPendentes() {
+            if (!currentJobId) return;
+            window.location.href = '/download-pendentes/' + currentJobId;
         }
 
         function resetarBotaoMassa() {

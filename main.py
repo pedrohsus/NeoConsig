@@ -415,7 +415,7 @@ async def _processar_massa(job_id: str):
         job["processados"] = i + 1
 
         if i < len(registros) - 1 and not job["cancelado"]:
-            await asyncio.sleep(1)
+            await asyncio.sleep(1.1)
 
     job["finalizado"] = True
 
@@ -457,6 +457,29 @@ async def download_massa(job_id: str):
         io.BytesIO(csv_bytes),
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=resultado_margem_{job_id}.csv"},
+    )
+
+
+@app.get("/download-pendentes/{job_id}")
+async def download_pendentes(job_id: str):
+    job = _massa_jobs.get(job_id)
+    if not job:
+        return {"erro": "Job não encontrado"}
+
+    pendentes = job["registros"][job["processados"]:]
+    if not pendentes:
+        return {"erro": "Todos os registros já foram processados"}
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=["cpf", "matricula"], delimiter=";")
+    writer.writeheader()
+    writer.writerows(pendentes)
+
+    csv_bytes = output.getvalue().encode("utf-8-sig")
+    return StreamingResponse(
+        io.BytesIO(csv_bytes),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=pendentes_{job_id}.csv"},
     )
 
 
