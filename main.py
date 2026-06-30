@@ -327,7 +327,7 @@ async def validar_csv(arquivo: UploadFile = File(...)):
     for row in reader:
         cpf_raw = (row.get(cpf_col) or "").strip()
         mat_raw = (row.get(mat_col) or "").strip()
-        cpf_limpo = re.sub(r"\D", "", cpf_raw)
+        cpf_limpo = re.sub(r"\D", "", cpf_raw).zfill(11)
         if len(cpf_limpo) == 11 and mat_raw:
             registros.append({"cpf": cpf_limpo, "matricula": mat_raw})
         else:
