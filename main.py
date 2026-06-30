@@ -318,9 +318,9 @@ async def validar_csv(arquivo: UploadFile = File(...)):
     mat_col = None
     for i, h in enumerate(headers_lower):
         if h in ("cpf", "cpf_servidor"):
-            cpf_col = reader.fieldnames[i].strip()
+            cpf_col = reader.fieldnames[i]
         if h in ("matricula", "matrícula", "matricula_servidor"):
-            mat_col = reader.fieldnames[i].strip()
+            mat_col = reader.fieldnames[i]
 
     if not cpf_col or not mat_col:
         return {"erro": f"Colunas 'CPF' e 'Matricula' não encontradas. Colunas detectadas: {reader.fieldnames}"}
