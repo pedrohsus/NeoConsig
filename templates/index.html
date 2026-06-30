@@ -298,9 +298,11 @@
             }
 
             registrosValidos = data.registros;
+            const colInfo = data.colunas ? ' | Colunas: ' + data.colunas.join(', ') + ' | Delimitador: "' + data.delimitador + '"' : '';
             div.innerHTML = '<div class="csv-info">' +
                 '<strong>' + data.validos + '</strong> registros válidos de <strong>' + data.total + '</strong> linhas' +
                 (data.invalidos > 0 ? ' (<span style="color:#c0392b">' + data.invalidos + ' inválidos</span>)' : '') +
+                '<br><small style="color:#555;">' + colInfo + '</small>' +
                 '</div>';
             document.getElementById('btnMassa').disabled = false;
         });

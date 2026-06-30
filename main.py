@@ -305,7 +305,10 @@ async def consultar(
 async def validar_csv(arquivo: UploadFile = File(...)):
     content = await arquivo.read()
     text = content.decode("utf-8-sig", errors="replace")
-    reader = csv.DictReader(io.StringIO(text), delimiter=";")
+
+    first_line = text.split("\n")[0] if text else ""
+    delimiter = ";" if ";" in first_line else ","
+    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
 
     if not reader.fieldnames:
         return {"erro": "Arquivo CSV vazio ou sem cabeçalho."}
@@ -327,7 +330,9 @@ async def validar_csv(arquivo: UploadFile = File(...)):
     for row in reader:
         cpf_raw = (row.get(cpf_col) or "").strip()
         mat_raw = (row.get(mat_col) or "").strip()
-        cpf_limpo = re.sub(r"\D", "", cpf_raw).zfill(11)
+        cpf_limpo = re.sub(r"\D", "", cpf_raw)
+        if cpf_limpo:
+            cpf_limpo = cpf_limpo.zfill(11)
         if len(cpf_limpo) == 11 and mat_raw:
             registros.append({"cpf": cpf_limpo, "matricula": mat_raw})
         else:
@@ -338,6 +343,8 @@ async def validar_csv(arquivo: UploadFile = File(...)):
         "validos": len(registros),
         "invalidos": invalidos,
         "registros": registros,
+        "colunas": reader.fieldnames,
+        "delimitador": delimiter,
     }
 
 
