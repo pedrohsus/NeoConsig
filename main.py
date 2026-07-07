@@ -394,6 +394,13 @@ async def _processar_massa(job_id: str):
             }
 
             if status == 200 and "dadosConsulta" in data:
+                df = data["dadosConsulta"].get("dadosFuncionais", {}) or {}
+                linha["secretaria"] = df.get("secretaria", "")
+                linha["categoria"] = df.get("categoria", "")
+                linha["situacao"] = df.get("situacao", "")
+                linha["cargo"] = df.get("cargo", "")
+                linha["data_admissao"] = df.get("data_admissao", "")
+
                 margens = data["dadosConsulta"].get("margens", [])
                 for m in margens:
                     linha["produto"] = m.get("pro_nome", "")
@@ -401,6 +408,11 @@ async def _processar_massa(job_id: str):
                     linha["margem_consignavel"] = m.get("margem_consignavel", 0)
                 linha["erro"] = ""
             else:
+                linha["secretaria"] = ""
+                linha["categoria"] = ""
+                linha["situacao"] = ""
+                linha["cargo"] = ""
+                linha["data_admissao"] = ""
                 linha["produto"] = ""
                 linha["margem"] = ""
                 linha["margem_consignavel"] = ""
@@ -413,6 +425,11 @@ async def _processar_massa(job_id: str):
                 "cpf": reg["cpf"],
                 "matricula": reg["matricula"],
                 "status": "ERRO",
+                "secretaria": "",
+                "categoria": "",
+                "situacao": "",
+                "cargo": "",
+                "data_admissao": "",
                 "produto": "",
                 "margem": "",
                 "margem_consignavel": "",
@@ -455,7 +472,7 @@ async def download_massa(job_id: str):
         return {"erro": "Sem resultados"}
 
     output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=["cpf", "matricula", "status", "produto", "margem", "margem_consignavel", "erro"], delimiter=";")
+    writer = csv.DictWriter(output, fieldnames=["cpf", "matricula", "status", "secretaria", "categoria", "situacao", "cargo", "data_admissao", "produto", "margem", "margem_consignavel", "erro"], delimiter=";")
     writer.writeheader()
     writer.writerows(job["resultados"])
 
