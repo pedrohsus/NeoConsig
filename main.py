@@ -94,7 +94,7 @@ MARGEM_URL = f"{BASE_URL}/api-integracao/v2/consultar-margem"
 CLIENT_ID = os.getenv("NEOCONSIG_CLIENT_ID", "81")
 CLIENT_SECRET = os.getenv("NEOCONSIG_CLIENT_SECRET", "DLegtjCy7BQVfjxWDUNvfzneOb4xAYQMmSUIunOZ")
 
-IPS_LIBERADOS = ["189.22.231.82", "200.216.93.115"]
+IPS_LIBERADOS = ["189.22.231.82", "200.216.93.115", "138.122.106.178"]
 
 CONVENIOS = {
     "8": "Goiás",
