@@ -207,6 +207,24 @@ app = FastAPI(title="NeoConsig - Consulta de Margem")
 templates = Jinja2Templates(directory="templates")
 
 
+@app.get("/testar-conexao")
+async def testar_conexao():
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                TOKEN_URLS[0],
+                json={"grant_type": "client_credentials", "client_id": CLIENT_ID, "client_secret": CLIENT_SECRET},
+                headers={"Content-Type": "application/json; charset=utf-8"},
+            )
+            if resp.status_code == 403:
+                return {"status": "bloqueado", "mensagem": "IP não liberado na NeoConsig (403 Forbidden)"}
+            if resp.status_code == 200:
+                return {"status": "ok", "mensagem": "Conexão OK — IP liberado e autenticação funcionando"}
+            return {"status": "parcial", "mensagem": f"IP liberado, mas autenticação retornou HTTP {resp.status_code}"}
+    except httpx.RequestError as exc:
+        return {"status": "erro", "mensagem": f"Erro de conexão: {exc}"}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     return templates.TemplateResponse("index.html", {
