@@ -248,12 +248,18 @@ async def consultar(
         except (json.JSONDecodeError, TypeError):
             err_body = exc.response.text
         detail = f"URL: {exc.response.url}\n\n{json.dumps(err_body, ensure_ascii=False, indent=2) if isinstance(err_body, dict) else err_body}"
+
+        if exc.response.status_code == 403:
+            erro_msg = "Erro HTTP 403 — Acesso negado. O IP desta máquina não está liberado na NeoConsig. Solicite a liberação do IP junto à NeoConsig."
+        else:
+            erro_msg = f"Erro HTTP {exc.response.status_code} na autenticação: {_format_api_error(exc.response.text)}"
+
         return templates.TemplateResponse("index.html", {
             "request": request,
             "resultado": None,
             "convenios": CONVENIOS,
             "ips_liberados": IPS_LIBERADOS,
-            "erro": f"Erro HTTP {exc.response.status_code} na autenticação: {_format_api_error(exc.response.text)}",
+            "erro": erro_msg,
             "erro_detalhe": detail,
             "form": form_data,
         })
